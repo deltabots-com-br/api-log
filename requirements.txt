@@ -1,0 +1,6 @@
+Flask
+pymongo
+python-dotenv
+flask-swagger-ui
+PyYAML
+requests
