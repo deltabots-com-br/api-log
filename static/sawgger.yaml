@@ -1,0 +1,154 @@
+# swagger.yaml
+# Deve ser salvo no caminho: /api/log/static/swagger.yaml
+
+openapi: 3.0.0
+info:
+  title: Deltabots RPA Log API
+  version: 1.0.0
+  description: API para receber logs estruturados de transações de robôs RPA e permitir consultas filtradas.
+
+servers:
+  - url: http://localhost:5000
+    description: Servidor de Desenvolvimento Local
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Summary:
+      type: object
+      properties:
+        timestamp: {type: string, example: "2025-05-15 09:30:15"}
+        robo_codigo: {type: string, example: "RPA-FINANCEIRO-007"}
+        status_final: {type: string, example: "FALHA"}
+        duracao_segundos: {type: number, format: float, example: 125.4}
+        log_detalhes: {type: string, example: "Processamento concluído com status: FALHA"}
+        host_info: 
+          type: object
+          properties:
+            machine_name: {type: string, example: "SRV-RPA-CLUSTER01"}
+            fingerprint: {type: string, example: "4c:21:2d:65:aa:bb"}
+    Step:
+      type: object
+      properties:
+        timestamp: {type: string, example: "2025-05-15 09:28:10"}
+        level: {type: string, example: "white"}
+        message: {type: string, example: "Navegador iniciado. Tentando acessar URL de login."}
+    LogMessage:
+      type: object
+      properties:
+        transaction_id: {type: string, example: "RPA-FINANCEIRO-007_20250515_092805123"}
+        summary: {$ref: '#/components/schemas/Summary'}
+        steps: 
+          type: array
+          items: {$ref: '#/components/schemas/Step'}
+          example:
+            - timestamp: "2025-05-15 09:28:10"
+              level: "white"
+              message: "Iniciando login no sistema ERP."
+            - timestamp: "2025-05-15 09:29:05"
+              level: "dark_gray"
+              message: "Falha: Elemento 'botao_enviar' não encontrado (Timeout)."
+    LogEntry:
+      type: object
+      properties:
+        _id: {type: string, example: "65377f0c13e61c0001000001"}
+        timestamp_utc: {type: string, format: date-time, example: "2025-05-15T12:30:15.123456Z"}
+        source_ip: {type: string, example: "192.168.1.10"}
+        level: {type: string, example: "FALHA"}
+        message: {$ref: '#/components/schemas/LogMessage'}
+
+paths:
+  /log:
+    post:
+      tags:
+        - Logs
+      summary: Envia um novo log de transação do RPA.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                level: {type: string, example: "OK"}
+                message: 
+                  type: object
+                  example:
+                    transaction_id: "RPA-FINANCEIRO-007_20250515_092805123"
+                    summary: 
+                      timestamp: "2025-05-15 09:30:15"
+                      robo_codigo: "RPA-FINANCEIRO-007"
+                      status_final: "OK"
+                      duracao_segundos: 125.4
+                      log_detalhes: "Processamento concluído com status: OK"
+                      host_info:
+                        machine_name: "SRV-RPA-CLUSTER01"
+                        fingerprint: "4c:21:2d:65:aa:bb"
+                    steps:
+                      - timestamp: "2025-05-15 09:28:10"
+                        level: "white"
+                        message: "Iniciando login no sistema ERP."
+                      - timestamp: "2025-05-15 09:29:05"
+                        level: "gray"
+                        message: "Dados de usuário e senha preenchidos."
+      responses:
+        '201':
+          description: Log inserido com sucesso.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, example: "sucesso"}
+                  log_id: {type: string}
+        '401':
+          description: Acesso negado (X-API-Key ausente ou inválida).
+  
+  /logs:
+    get:
+      tags:
+        - Logs
+      summary: Consulta logs de transação com filtros.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: robo_codigo
+          schema: {type: string, example: "RPA-FINANCEIRO-007"}
+          description: Filtra logs por código do robô.
+        - in: query
+          name: data_inicio
+          schema: {type: string, format: date, example: "2025-05-15"}
+          description: Data/hora inicial para a consulta (YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS).
+        - in: query
+          name: data_fim
+          schema: {type: string, format: date, example: "2025-05-16"}
+          description: Data/hora final para a consulta (YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS).
+      responses:
+        '200':
+          description: Lista de logs recuperada com sucesso.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string}
+                  total_resultados: {type: integer}
+                  logs: {type: array, items: {$ref: '#/components/schemas/LogEntry'}}
+        '401':
+          description: Acesso negado (X-API-Key ausente ou inválida).
+  
+  /:
+    get:
+      tags:
+        - Utilidades
+      summary: Verifica o status de saúde da API.
+      responses:
+        '200':
+          description: API está operacional.
