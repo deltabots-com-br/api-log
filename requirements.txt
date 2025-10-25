@@ -4,3 +4,4 @@ python-dotenv
 flask-swagger-ui
 PyYAML
 requests
+flask-cors
