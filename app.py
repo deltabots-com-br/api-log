@@ -4,9 +4,11 @@ import datetime
 import sys
 from functools import wraps
 import yaml
-from flask_swagger_ui import get_swaggerui_blueprint
 import os
 from dotenv import load_dotenv
+from flask_swagger_ui import get_swaggerui_blueprint
+# Importação da biblioteca Flask-CORS
+from flask_cors import CORS 
 
 # --- Carrega variáveis de ambiente do arquivo .env ---
 # Garantir que o .env seja carregado
@@ -15,8 +17,14 @@ load_dotenv()
 # --- Configuração da Aplicação Flask ---
 app = Flask(__name__, static_url_path='/static', static_folder='static') # Garante que a pasta static seja reconhecida
 
+# --- CONFIGURAÇÃO CORS ---
+# Inicializa o CORS na aplicação para permitir requisições de qualquer origem.
+# Se precisar restringir a origens específicas, use: CORS(app, resources={r"/*": {"origins": ["http://seu-dominio.com"]}})
+CORS(app)
+
+
 # =================================================================
-#           CONFIGURAÇÃO SWAGGER/OPENAPI 
+#            CONFIGURAÇÃO SWAGGER/OPENAPI 
 # =================================================================
 
 # Carrega a especificação OpenAPI diretamente do arquivo estático
@@ -61,7 +69,7 @@ def require_api_key(view_function):
 # --- Configuração do MongoDB ---
 MONGO_URI = os.getenv('MONGO_URI', "mongodb://mongo:09fd25324780e7342779@116.203.134.255:27017/?tls=false")
 DB_NAME = "deltabots_rpa_logs"  
-COLLECTION_NAME = "events"      
+COLLECTION_NAME = "events"       
 
 # --- Inicializa a Conexão com o MongoDB ---
 try:
@@ -77,7 +85,7 @@ except Exception as e:
     collection = None
 
 # =================================================================
-#               FUNÇÃO AUXILIAR DE PARSE DE DATA
+#                FUNÇÃO AUXILIAR DE PARSE DE DATA
 # =================================================================
 
 def parse_date(date_str):
@@ -100,7 +108,7 @@ def parse_date(date_str):
             return None, False
 
 # =================================================================
-#               ROTAS DA API
+#                ROTAS DA API
 # =================================================================
 
 @app.route('/logs', methods=['GET'])
@@ -134,10 +142,11 @@ def get_logs():
         data_fim, time_provided = parse_date(data_fim_str)
         if data_fim:
             if not time_provided:
+                # Se apenas a data foi fornecida, queremos logs até o final daquele dia.
                 data_fim = data_fim + datetime.timedelta(days=1)
-                date_query['$lt'] = data_fim
+                date_query['$lt'] = data_fim # Usa $lt para pegar até o início do próximo dia
             else:
-                date_query['$lte'] = data_fim
+                date_query['$lte'] = data_fim # Usa $lte para o exato timestamp
         else:
             return jsonify({"error": "Formato de data inválido para 'data_fim'. Use YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS."}), 400
     
@@ -183,10 +192,10 @@ def receive_log():
     try:
         data = request.json
         if not data or 'message' not in data or 'level' not in data:
-             return jsonify({
-                "error": "Requisição inválida.", 
-                "message": "O JSON deve ser um documento contendo as chaves 'message' (o log) e 'level' (o status)."
-            }), 400
+              return jsonify({
+                  "error": "Requisição inválida.", 
+                  "message": "O JSON deve ser um documento contendo as chaves 'message' (o log) e 'level' (o status)."
+              }), 400
     except Exception:
         return jsonify({"error": "Corpo da requisição não é um JSON válido."}), 400
 
@@ -221,11 +230,8 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000)) 
     
     # Esta seção de criação de arquivo foi removida para garantir que o container não falhe por permissão
-    # if not os.path.exists('static'):
-    #     os.makedirs('static')
-    # with open('static/swagger.yaml', 'w') as f:
-    #     yaml.dump(yaml.safe_load(SWAGGER_SPEC), f, sort_keys=False)
-        
+    # O arquivo static/swagger.yaml deve ser fornecido no seu deploy.
+    
     print(f"\n===============================================================")
     print(f" SERVIDOR FLASK INICIADO NA PORTA: {port}")
     print(f" DOCUMENTAÇÃO SWAGGER/OPENAPI DISPONÍVEL EM: /swagger")
