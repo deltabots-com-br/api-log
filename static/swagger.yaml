@@ -1,3 +1,4 @@
+# [YAML code block from the previous response - included for reference but prioritize validation]
 openapi: 3.0.0
 info:
   title: Deltabots Unified Log API
@@ -29,7 +30,7 @@ components:
         message:
           type: string
           description: Mensagem detalhada sobre o erro.
-          example: Chave de API inválida. # <<< Line 41 is around here
+          example: Chave de API inválida.
       required:
         - error
         - message
