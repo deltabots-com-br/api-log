@@ -160,10 +160,10 @@ components:
               description: Presente se type=ipaas e o filtro foi aplicado.
             data_inicio:
               type: string
-              format: date-time # Ou date
+              format: date-time
             data_fim:
               type: string
-              format: date-time # Ou date
+              format: date-time
           required:
             - type
         logs:
