@@ -1,4 +1,3 @@
-# [YAML code block from the previous response - included for reference but prioritize validation]
 openapi: 3.0.0
 info:
   title: Deltabots Unified Log API
@@ -198,6 +197,21 @@ security:
   - ApiKeyAuth: []
 
 paths:
+  /:
+    get:
+      tags:
+        - Health
+      summary: Verifica a saúde da API
+      description: Retorna o status operacional da API e da conexão com o MongoDB. Não requer autenticação.
+      security: []
+      responses:
+        '200':
+          description: API está operacional.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
   /logs:
     post:
       tags:
@@ -334,18 +348,3 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
-  /:
-    get:
-      tags:
-        - Health
-      summary: Verifica a saúde da API
-      description: Retorna o status operacional da API e da conexão com o MongoDB. Não requer autenticação.
-      security: []
-      responses:
-        '200':
-          description: API está operacional.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthStatus'
