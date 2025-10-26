@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Deltabots Unified Log API
+  title: Deltabots Unified Log API (SIMPLES)
   description: API unificada para registrar e consultar logs de execuções RPA e iPaaS (n8n).
   version: "1.1.0"
 servers:
@@ -24,96 +24,46 @@ components:
       properties:
         error:
           type: string
-          description: Descrição curta do erro.
           example: Acesso negado
         message:
           type: string
-          description: Mensagem detalhada sobre o erro.
           example: Chave de API inválida.
       required:
         - error
         - message
 
-    # --- Schemas de Entrada para POST /logs ---
-    RpaLogInputBase:
-      type: object
-      properties:
-        level:
-          type: string
-          description: Nível do log (ex: INFO, ERROR, WARNING).
-          example: INFO
-        message:
-          type: object
-          description: O conteúdo detalhado do log RPA. A estrutura interna pode variar.
-          additionalProperties: true
-          example:
-            evento: InicioExecucao
-            detalhes: Robô iniciando processamento.
-            summary:
-              robo_codigo: FATURAMENTO_001
-              execucao_id: exec_abc123
-      required:
-        - level
-        - message
-
-    IpaasLogInputBase:
-      type: object
-      properties:
-        ipaas_codigo:
-          type: string
-          description: Identificador único do fluxo/workflow iPaaS.
-          example: ERPSIGO-l9Ys9nqdsHvFyWlJ
-        data:
-          type: object
-          description: Objeto contendo os detalhes completos da execução iPaaS (estrutura pode variar dependendo da plataforma, ex: n8n).
-          additionalProperties: true
-          example:
-            startData: {}
-            resultData: { runData: { Webhook: [] } }
-            Status: success
-      required:
-        - ipaas_codigo
-        - data
-
+    # --- Schema de Entrada Unificado (Descreve ambos os casos) ---
     UnifiedLogInput:
       type: object
-      required:
-        - type
+      description: O formato da requisição depende do valor do campo 'type'.
       properties:
         type:
           type: string
-          description: Indica o tipo de log que está sendo enviado. Determina os outros campos obrigatórios.
+          description: Deve ser 'rpa' ou 'ipaas'. Define a coleção de destino.
           enum: [rpa, ipaas]
-      discriminator:
-        propertyName: type
-        mapping:
-          rpa: '#/components/schemas/RpaLogInput'
-          ipaas: '#/components/schemas/IpaasLogInput'
-      oneOf:
-        - $ref: '#/components/schemas/RpaLogInput'
-        - $ref: '#/components/schemas/IpaasLogInput'
-
-    RpaLogInput:
-      allOf:
-        - type: object
-          properties:
-            type:
-              type: string
-              description: Tipo de log, deve ser 'rpa'.
-              enum: [rpa]
-          required: [type]
-        - $ref: '#/components/schemas/RpaLogInputBase'
-
-    IpaasLogInput:
-      allOf:
-        - type: object
-          properties:
-            type:
-              type: string
-              description: Tipo de log, deve ser 'ipaas'.
-              enum: [ipaas]
-          required: [type]
-        - $ref: '#/components/schemas/IpaasLogInputBase'
+          example: ipaas
+        # Campos Específicos para RPA:
+        level:
+          type: string
+          description: (Somente para type=rpa) Nível do log (INFO, ERROR, etc.).
+          example: ERROR
+        message:
+          type: object
+          description: (Somente para type=rpa) O corpo detalhado do log RPA.
+          additionalProperties: true
+          example: { evento: Falha de Login, summary: { robo_codigo: FAT_001 } }
+        # Campos Específicos para iPaaS:
+        ipaas_codigo:
+          type: string
+          description: (Somente para type=ipaas) Identificador do fluxo iPaaS.
+          example: ERPSIGO-l9Ys9nqdsHvFyWlJ
+        data:
+          type: object
+          description: (Somente para type=ipaas) Objeto JSON completo da execução iPaaS (n8n).
+          additionalProperties: true
+          example: { startData: {}, Status: error, lastNode: Nó com Erro }
+      required:
+        - type
 
     # --- Schemas de Saída ---
     PostLogSuccessResponse:
@@ -124,11 +74,10 @@ components:
           example: sucesso
         log_type_processed:
           type: string
-          description: O tipo de log que foi processado ('rpa' ou 'ipaas').
-          example: rpa
+          example: ipaas
         log_id:
           type: string
-          description: O ID único do log inserido no banco de dados MongoDB.
+          description: O ID único do log inserido no MongoDB.
           example: 635f123abc123def456ghi78
       required:
         - status
@@ -143,35 +92,17 @@ components:
           example: sucesso
         total_resultados:
           type: integer
-          description: Número de logs retornados na consulta atual (limitado a 100).
           example: 15
         filtros_aplicados:
           type: object
-          description: Um resumo dos filtros que foram aplicados nesta busca.
-          properties:
-            type:
-              type: string
-              enum: [rpa, ipaas]
-            robo_codigo:
-              type: string
-              description: Presente se type=rpa e o filtro foi aplicado.
-            ipaas_codigo:
-              type: string
-              description: Presente se type=ipaas e o filtro foi aplicado.
-            data_inicio:
-              type: string
-              format: date-time
-            data_fim:
-              type: string
-              format: date-time
-          required:
-            - type
+          description: Resumo dos filtros aplicados na consulta.
+          additionalProperties: true
+          example: { type: ipaas, ipaas_codigo: 'ERPSIGO...', data_inicio: '2025-10-20' }
         logs:
           type: array
-          description: Lista dos documentos de log encontrados. A estrutura de cada item depende do 'type' solicitado ('rpa' ou 'ipaas').
+          description: Lista dos documentos de log. A estrutura de cada log varia (RPA ou iPaaS) conforme o 'type' solicitado.
           items:
             type: object
-            description: "Se type=rpa, contém _id, timestamp_utc, source_ip, level, message. Se type=ipaas, contém _id, timestamp_utc, source_ip, ipaas_codigo, execution_details."
             additionalProperties: true
       required:
         - status
@@ -182,15 +113,15 @@ components:
     HealthStatus:
       type: object
       properties:
-        status:
+        api_status:
           type: string
-          example: API de Logs Unificada está operacional
+          example: operacional
         mongodb_status:
           type: string
           enum: [conectado, desconectado]
           example: conectado
       required:
-        - status
+        - api_status
         - mongodb_status
 
 security:
@@ -201,8 +132,8 @@ paths:
     get:
       tags:
         - Health
-      summary: Verifica a saúde da API
-      description: Retorna o status operacional da API e da conexão com o MongoDB. Não requer autenticação.
+      summary: Verifica a saúde da API e a conexão com o MongoDB.
+      description: Retorna o status operacional da API.
       security: []
       responses:
         '200':
@@ -216,12 +147,12 @@ paths:
     post:
       tags:
         - Logs
-      summary: Registra um novo log (RPA ou iPaaS)
-      description: Recebe um log no formato JSON. O campo 'type' determina se é um log de RPA ou iPaaS e quais outros campos são necessários.
+      summary: Registra um log de RPA ou iPaaS na coleção apropriada.
+      description: O tipo de log é definido pelo campo 'type' no corpo da requisição.
       security:
         - ApiKeyAuth: []
       requestBody:
-        description: Objeto JSON contendo o log a ser registrado.
+        description: Objeto JSON contendo o log e o seu tipo.
         required: true
         content:
           application/json:
@@ -235,48 +166,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/PostLogSuccessResponse'
         '400':
-          description: Requisição inválida (JSON malformado, campos obrigatórios ausentes para o 'type' especificado, 'type' inválido).
+          description: Requisição inválida (campos de tipo ausentes ou inválidos).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Acesso negado (Header 'X-API-Key' ausente).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
         '403':
-          description: Acesso negado (Chave de API 'X-API-Key' inválida).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Erro interno do servidor (ex: falha ao escrever no banco de dados).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ForbiddenError'
         '503':
-          description: Serviço indisponível (falha na conexão com o banco de dados).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ServiceUnavailableError'
 
     get:
       tags:
         - Logs
-      summary: Consulta logs registrados (RPA ou iPaaS)
-      description: Busca logs com base no 'type' e outros filtros opcionais. Retorna os 100 logs mais recentes que correspondem aos critérios, ordenados por timestamp decrescente.
+      summary: Consulta logs por tipo e filtros de data/código.
+      description: Busca e retorna os logs (RPA ou iPaaS) mais recentes, limitados a 100 resultados.
       security:
         - ApiKeyAuth: []
       parameters:
         - name: type
           in: query
           required: true
-          description: Especifica o tipo de log a ser consultado.
+          description: Deve ser 'rpa' ou 'ipaas'.
           schema:
             type: string
             enum: [rpa, ipaas]
@@ -284,21 +197,21 @@ paths:
         - name: robo_codigo
           in: query
           required: false
-          description: (Opcional, usar com type=rpa) Filtra logs pelo código do robô (busca em 'message.summary.robo_codigo').
+          description: (Usado com type=rpa) Filtra logs pelo código do robô.
           schema:
             type: string
             example: FATURAMENTO_001
         - name: ipaas_codigo
           in: query
           required: false
-          description: (Opcional, usar com type=ipaas) Filtra logs pelo código do fluxo iPaaS.
+          description: (Usado com type=ipaas) Filtra logs pelo código do fluxo iPaaS.
           schema:
             type: string
             example: ERPSIGO-l9Ys9nqdsHvFyWlJ
         - name: data_inicio
           in: query
           required: false
-          description: (Opcional) Data/hora inicial (inclusive) para filtrar os logs. Formato YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS[Z] (ISO 8601). Se Z não for fornecido, assume-se UTC. Se a hora não for fornecida, considera o início do dia (00:00:00 UTC).
+          description: Data/hora inicial (YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SSZ).
           schema:
             type: string
             format: date-time
@@ -306,7 +219,7 @@ paths:
         - name: data_fim
           in: query
           required: false
-          description: (Opcional) Data/hora final (inclusive) para filtrar os logs. Formato YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS[Z] (ISO 8601). Se Z não for fornecido, assume-se UTC. Se a hora não for fornecida, considera o fim do dia (23:59:59.999 UTC).
+          description: Data/hora final.
           schema:
             type: string
             format: date-time
@@ -319,32 +232,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/LogListResponse'
         '400':
-          description: Requisição inválida (parâmetro 'type' ausente ou inválido, formato de data inválido).
+          description: Requisição inválida (type ausente ou formato de data errado).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Acesso negado (Header 'X-API-Key' ausente).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
         '403':
-          description: Acesso negado (Chave de API 'X-API-Key' inválida).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Erro interno do servidor (ex: falha ao consultar o banco de dados).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ForbiddenError'
         '503':
-          description: Serviço indisponível (falha na conexão com o banco de dados).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+  # --- Respostas Padrão Reutilizáveis (para simplificar a rota /logs) ---
+  responses:
+    UnauthorizedError:
+      description: Acesso negado. Header 'X-API-Key' ausente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Acesso negado. Chave de API inválida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailableError:
+      description: Serviço indisponível (falha na conexão com o banco de dados).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
