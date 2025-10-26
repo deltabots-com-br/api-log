@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Deltabots Unified Log API
   description: API unificada para registrar e consultar logs de execuções RPA e iPaaS (n8n).
-  version: "1.1.0" # Versão incrementada devido à mudança estrutural
+  version: "1.1.0"
 servers:
   - url: http://SEU_DOMINIO_API # Substitua pelo URL real da sua API
     description: Servidor Principal
@@ -13,10 +13,10 @@ tags:
     description: Verificação de status da API.
 components:
   securitySchemes:
-    ApiKeyAuth: # Define o esquema de segurança da chave de API
+    ApiKeyAuth:
       type: apiKey
       in: header
-      name: X-API-Key # Nome do header esperado
+      name: X-API-Key
   schemas:
     # --- Schemas de Erro ---
     ErrorResponse:
@@ -29,7 +29,7 @@ components:
         message:
           type: string
           description: Mensagem detalhada sobre o erro.
-          example: Chave de API inválida.
+          example: Chave de API inválida. # <<< Line 41 is around here
       required:
         - error
         - message
@@ -45,7 +45,7 @@ components:
         message:
           type: object
           description: O conteúdo detalhado do log RPA. A estrutura interna pode variar.
-          additionalProperties: true # Permite qualquer estrutura dentro de message
+          additionalProperties: true
           example:
             evento: InicioExecucao
             detalhes: Robô iniciando processamento.
@@ -66,10 +66,10 @@ components:
         data:
           type: object
           description: Objeto contendo os detalhes completos da execução iPaaS (estrutura pode variar dependendo da plataforma, ex: n8n).
-          additionalProperties: true # Permite qualquer estrutura complexa
-          example: # Exemplo simplificado da estrutura n8n
+          additionalProperties: true
+          example:
             startData: {}
-            resultData: { runData: { /* ... */ } }
+            resultData: { runData: { Webhook: [] } }
             Status: success
       required:
         - ipaas_codigo
@@ -84,40 +84,36 @@ components:
           type: string
           description: Indica o tipo de log que está sendo enviado. Determina os outros campos obrigatórios.
           enum: [rpa, ipaas]
-      # Usa discriminator para que as ferramentas possam entender qual schema usar baseado no 'type'
       discriminator:
         propertyName: type
         mapping:
           rpa: '#/components/schemas/RpaLogInput'
           ipaas: '#/components/schemas/IpaasLogInput'
-      # oneOf define as possíveis estruturas completas
       oneOf:
         - $ref: '#/components/schemas/RpaLogInput'
         - $ref: '#/components/schemas/IpaasLogInput'
 
-    # Schemas completos referenciados pelo oneOf/discriminator
     RpaLogInput:
-      allOf: # Combina UnifiedLogInput (para ter o campo 'type') e RpaLogInputBase
+      allOf:
         - type: object
           properties:
             type:
               type: string
               description: Tipo de log, deve ser 'rpa'.
-              enum: [rpa] # Restringe a 'rpa' para este schema específico
+              enum: [rpa]
           required: [type]
         - $ref: '#/components/schemas/RpaLogInputBase'
 
     IpaasLogInput:
-      allOf: # Combina UnifiedLogInput e IpaasLogInputBase
+      allOf:
         - type: object
           properties:
             type:
               type: string
               description: Tipo de log, deve ser 'ipaas'.
-              enum: [ipaas] # Restringe a 'ipaas' para este schema específico
+              enum: [ipaas]
           required: [type]
         - $ref: '#/components/schemas/IpaasLogInputBase'
-
 
     # --- Schemas de Saída ---
     PostLogSuccessResponse:
@@ -164,20 +160,19 @@ components:
               description: Presente se type=ipaas e o filtro foi aplicado.
             data_inicio:
               type: string
-              format: date-time or date
+              format: date-time # Ou date
             data_fim:
               type: string
-              format: date-time or date
+              format: date-time # Ou date
           required:
             - type
         logs:
           type: array
           description: Lista dos documentos de log encontrados. A estrutura de cada item depende do 'type' solicitado ('rpa' ou 'ipaas').
           items:
-            type: object # Genérico, pois a estrutura varia
+            type: object
             description: "Se type=rpa, contém _id, timestamp_utc, source_ip, level, message. Se type=ipaas, contém _id, timestamp_utc, source_ip, ipaas_codigo, execution_details."
-            additionalProperties: true # Permite qualquer campo
-
+            additionalProperties: true
       required:
         - status
         - total_resultados
@@ -199,7 +194,7 @@ components:
         - mongodb_status
 
 security:
-  - ApiKeyAuth: [] # Aplica a segurança ApiKeyAuth globalmente, mas pode ser sobrescrito por rota
+  - ApiKeyAuth: []
 
 paths:
   /logs:
@@ -209,14 +204,14 @@ paths:
       summary: Registra um novo log (RPA ou iPaaS)
       description: Recebe um log no formato JSON. O campo 'type' determina se é um log de RPA ou iPaaS e quais outros campos são necessários.
       security:
-        - ApiKeyAuth: [] # Requer a chave de API para esta rota
+        - ApiKeyAuth: []
       requestBody:
         description: Objeto JSON contendo o log a ser registrado.
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UnifiedLogInput' # Referencia o schema unificado com discriminator
+              $ref: '#/components/schemas/UnifiedLogInput'
       responses:
         '201':
           description: Log registrado com sucesso.
@@ -261,7 +256,7 @@ paths:
       summary: Consulta logs registrados (RPA ou iPaaS)
       description: Busca logs com base no 'type' e outros filtros opcionais. Retorna os 100 logs mais recentes que correspondem aos critérios, ordenados por timestamp decrescente.
       security:
-        - ApiKeyAuth: [] # Requer a chave de API para esta rota
+        - ApiKeyAuth: []
       parameters:
         - name: type
           in: query
@@ -291,7 +286,7 @@ paths:
           description: (Opcional) Data/hora inicial (inclusive) para filtrar os logs. Formato YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS[Z] (ISO 8601). Se Z não for fornecido, assume-se UTC. Se a hora não for fornecida, considera o início do dia (00:00:00 UTC).
           schema:
             type: string
-            format: date-time # Indica que pode ser data ou data-hora
+            format: date-time
             example: 2025-10-26T10:00:00Z
         - name: data_fim
           in: query
@@ -299,7 +294,7 @@ paths:
           description: (Opcional) Data/hora final (inclusive) para filtrar os logs. Formato YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS[Z] (ISO 8601). Se Z não for fornecido, assume-se UTC. Se a hora não for fornecida, considera o fim do dia (23:59:59.999 UTC).
           schema:
             type: string
-            format: date-time # Indica que pode ser data ou data-hora
+            format: date-time
             example: 2025-10-26
       responses:
         '200':
@@ -345,7 +340,7 @@ paths:
         - Health
       summary: Verifica a saúde da API
       description: Retorna o status operacional da API e da conexão com o MongoDB. Não requer autenticação.
-      security: [] # Sobrescreve a segurança global, tornando esta rota pública
+      security: []
       responses:
         '200':
           description: API está operacional.
